@@ -1,4 +1,4 @@
-module goplus
+module github.com/ericpen12/goplus
 
 go 1.19
 
