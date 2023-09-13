@@ -1,4 +1,4 @@
-module goplus
+module github.com/quzhen12/goplus
 
 go 1.19
 
