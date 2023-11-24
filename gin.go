@@ -19,6 +19,12 @@ func RegisterHandler(e *gin.Engine, serviceName string, service interface{}) {
 				c.JSON(200, err)
 			}
 		}()
+		if IsCallRepeated(service, method, func() bool {
+			return c.Query("time") == time.Now().Format("200601021504")
+		}) {
+			c.JSON(200, "请勿重复调用")
+			return
+		}
 		callByFuncName(c, service, method)
 	})
 }
@@ -56,28 +62,20 @@ func parseParams(c *gin.Context, fnType reflect.Type) ([]reflect.Value, error) {
 	}
 	return result, nil
 }
-
-func CheckSafe(c *gin.Context) {
-	if !isSafe(c) {
-		panic("current environment is unsafe")
-	}
-}
-
-func isSafe(c *gin.Context) bool {
-	timeStr := time.Now().Format("200601021504")
-	inputTime := c.Query("time")
-	if inputTime != timeStr {
+func IsCallRepeated(service interface{}, method string, isIdempotent func() bool) bool {
+	fn := reflect.ValueOf(service).MethodByName("IdempotentFunc")
+	if fn.Kind() != reflect.Func {
 		return false
 	}
-	return true
-}
-
-type quickStart struct{}
-
-type PingReq struct {
-	Msg string
-}
-
-func (m *quickStart) Ping(c *gin.Context, input *PingReq) {
-	c.JSON(200, input.Msg)
+	result := fn.Call([]reflect.Value{reflect.ValueOf(method)})
+	if len(result) <= 0 {
+		return false
+	}
+	if result[0].Kind() != reflect.Bool {
+		return false
+	}
+	if !result[0].Bool() {
+		return false
+	}
+	return !isIdempotent()
 }
