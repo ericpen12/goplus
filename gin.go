@@ -67,15 +67,18 @@ func IsCallRepeated(service interface{}, method string, isIdempotent func() bool
 	if fn.Kind() != reflect.Func {
 		return false
 	}
-	result := fn.Call([]reflect.Value{reflect.ValueOf(method)})
+	result := fn.Call([]reflect.Value{})
 	if len(result) <= 0 {
 		return false
 	}
-	if result[0].Kind() != reflect.Bool {
+	returnData := result[0]
+	if returnData.Kind() != reflect.Slice {
 		return false
 	}
-	if !result[0].Bool() {
-		return false
+	for i := 0; i < returnData.Len(); i++ {
+		if returnData.Index(i).String() == method {
+			return !isIdempotent()
+		}
 	}
-	return !isIdempotent()
+	return false
 }

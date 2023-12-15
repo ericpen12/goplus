@@ -12,16 +12,14 @@ func (q *quickStartTest) Hello() {
 	fmt.Println("hello")
 }
 
-func (q *quickStartTest) IdempotentFunc(method string) bool {
-	return map[string]bool{
-		"Hello": false,
-	}[method]
+func (q *quickStartTest) IdempotentFunc() []string {
+	return []string{"Hello"}
 }
 
 func TestCheckIdempotent(t *testing.T) {
 	q := &quickStartTest{}
 	ret := IsCallRepeated(q, "Hello", func() bool {
-		return false
+		return true
 	})
 	t.Log(ret)
 }
