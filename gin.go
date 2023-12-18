@@ -7,52 +7,67 @@ import (
 	"time"
 )
 
-func RegisterHandler(e *gin.Engine, serviceName string, service interface{}) {
-	e.POST(fmt.Sprintf("/%s/quick-start/do", serviceName), func(c *gin.Context) {
-		method := c.Query("method")
-		if method == "" {
-			c.JSON(200, "method is empty")
-			return
-		}
-		defer func() {
-			if err := recover(); err != nil {
-				c.JSON(200, err)
-			}
-		}()
-		if IsCallRepeated(service, method, func() bool {
-			return c.Query("time") == time.Now().Format("200601021504")
-		}) {
-			c.JSON(200, "请勿重复调用")
-			return
-		}
-		callByFuncName(c, service, method)
-	})
+type register struct {
+	g       *gin.Engine
+	gCtx    *gin.Context
+	service interface{}
+	method  string
 }
 
-func callByFuncName(c *gin.Context, service interface{}, method string) {
-	fn := reflect.ValueOf(service).MethodByName(method)
-	if fn.Kind() != reflect.Func {
-		c.JSON(200, fmt.Sprintf("method is not exist: %s", method))
+var r *register
+
+func RegisterHandler(e *gin.Engine, serviceName string, service interface{}) {
+	r = &register{
+		g:       e,
+		service: service,
+	}
+	r.g.POST(fmt.Sprintf("/%s/quick-start/do", serviceName), r.handler)
+}
+
+func (r *register) handler(c *gin.Context) {
+	r.gCtx = c
+	r.method = c.Query("method")
+	if r.method == "" {
+		c.JSON(200, "method is empty")
 		return
 	}
-	params, err := parseParams(c, fn.Type())
+	defer func() {
+		if err := recover(); err != nil {
+			c.JSON(200, err)
+		}
+	}()
+	err := r.checkRepeated(r.checkRepeatedByTime)
 	if err != nil {
-		c.JSON(200, fmt.Sprintf("parse params error: %s", err))
+		c.JSON(200, err)
+		return
+	}
+	r.callByFuncName()
+}
+
+func (r *register) callByFuncName() {
+	fn := reflect.ValueOf(r.service).MethodByName(r.method)
+	if fn.Kind() != reflect.Func {
+		r.gCtx.JSON(200, fmt.Sprintf("method is not exist: %s", r.method))
+		return
+	}
+	params, err := r.parseParams(fn.Type())
+	if err != nil {
+		r.gCtx.JSON(200, fmt.Sprintf("parse params error: %s", err))
 		return
 	}
 	fn.Call(params)
 }
 
-func parseParams(c *gin.Context, fnType reflect.Type) ([]reflect.Value, error) {
+func (r *register) parseParams(fnType reflect.Type) ([]reflect.Value, error) {
 	result := make([]reflect.Value, fnType.NumIn())
 	for i := 0; i < fnType.NumIn(); i++ {
 		in := fnType.In(i)
 
 		if in.Elem().AssignableTo(reflect.TypeOf(gin.Context{})) {
-			result[i] = reflect.ValueOf(c)
+			result[i] = reflect.ValueOf(r.gCtx)
 		} else {
 			tv := reflect.New(in.Elem())
-			err := c.ShouldBindJSON(tv.Interface())
+			err := r.gCtx.ShouldBindJSON(tv.Interface())
 			if err != nil {
 				return nil, err
 			}
@@ -62,23 +77,24 @@ func parseParams(c *gin.Context, fnType reflect.Type) ([]reflect.Value, error) {
 	}
 	return result, nil
 }
-func IsCallRepeated(service interface{}, method string, isIdempotent func() bool) bool {
-	fn := reflect.ValueOf(service).MethodByName("IdempotentFunc")
-	if fn.Kind() != reflect.Func {
-		return false
+
+type CallRepeat interface {
+	CheckList() []string
+}
+
+func (r *register) checkRepeated(isRepeated func() bool) error {
+	c, ok := r.service.(CallRepeat)
+	if !ok {
+		return nil
 	}
-	result := fn.Call([]reflect.Value{})
-	if len(result) <= 0 {
-		return false
-	}
-	returnData := result[0]
-	if returnData.Kind() != reflect.Slice {
-		return false
-	}
-	for i := 0; i < returnData.Len(); i++ {
-		if returnData.Index(i).String() == method {
-			return !isIdempotent()
+	for _, name := range c.CheckList() {
+		if name == r.method && isRepeated() {
+			return fmt.Errorf("请勿重复调用")
 		}
 	}
-	return false
+	return nil
+}
+
+func (r *register) checkRepeatedByTime() bool {
+	return r.gCtx.Query("time") != time.Now().Format("200601021504")
 }
