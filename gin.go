@@ -28,17 +28,17 @@ func (r *register) handler(c *gin.Context) {
 	r.gCtx = c
 	r.method = c.Query("method")
 	if r.method == "" {
-		c.JSON(200, "method is empty")
+		response(nil, fmt.Errorf("method 不能为空"))
 		return
 	}
 	defer func() {
 		if err := recover(); err != nil {
-			c.JSON(200, err)
+			response(nil, err.(error))
 		}
 	}()
 	err := r.checkRepeated(r.checkRepeatedByTime)
 	if err != nil {
-		c.JSON(200, err)
+		response(nil, err)
 		return
 	}
 	r.callByFuncName()
@@ -47,12 +47,12 @@ func (r *register) handler(c *gin.Context) {
 func (r *register) callByFuncName() {
 	fn := reflect.ValueOf(r.service).MethodByName(r.method)
 	if fn.Kind() != reflect.Func {
-		r.gCtx.JSON(200, fmt.Sprintf("method is not exist: %s", r.method))
+		response(nil, fmt.Errorf("method is not exist: %s", r.method))
 		return
 	}
 	params, err := r.parseParams(fn.Type())
 	if err != nil {
-		r.gCtx.JSON(200, fmt.Sprintf("parse params error: %s", err))
+		response(nil, fmt.Errorf("parse params error: %s", err))
 		return
 	}
 	fn.Call(params)
@@ -76,6 +76,22 @@ func (r *register) parseParams(fnType reflect.Type) ([]reflect.Value, error) {
 
 	}
 	return result, nil
+}
+
+type responseModel struct {
+	Code int
+	Data interface{}
+	Msg  string
+}
+
+func response(data interface{}, err error) {
+	resp := responseModel{
+		Data: data,
+	}
+	if err != nil {
+		resp.Msg = err.Error()
+	}
+	r.gCtx.JSON(200, resp)
 }
 
 type CallRepeat interface {
