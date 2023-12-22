@@ -106,6 +106,7 @@ func response(data interface{}, err error) {
 	}
 	if err != nil {
 		resp.Msg = err.Error()
+		resp.Code = -1
 	}
 	r.gCtx.JSON(200, resp)
 }
