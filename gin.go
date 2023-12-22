@@ -41,21 +41,37 @@ func (r *register) handler(c *gin.Context) {
 		response(nil, err)
 		return
 	}
-	r.callByFuncName()
+	response(r.callByFuncName())
 }
 
-func (r *register) callByFuncName() {
+func (r *register) callByFuncName() (interface{}, error) {
 	fn := reflect.ValueOf(r.service).MethodByName(r.method)
 	if fn.Kind() != reflect.Func {
-		response(nil, fmt.Errorf("method is not exist: %s", r.method))
-		return
+		return nil, fmt.Errorf("method is not exist: %s", r.method)
 	}
 	params, err := r.parseParams(fn.Type())
 	if err != nil {
-		response(nil, fmt.Errorf("parse params error: %s", err))
-		return
+		return nil, fmt.Errorf("parse params error: %s", err)
 	}
-	fn.Call(params)
+	return getCallResponse(fn.Call(params))
+}
+
+func getCallResponse(list []reflect.Value) (interface{}, error) {
+	var (
+		result []interface{}
+		err    error
+	)
+	for _, item := range list {
+		if v, ok := item.Interface().(error); ok {
+			err = v
+		} else {
+			result = append(result, item.Interface())
+		}
+	}
+	if len(result) == 1 {
+		return result[0], err
+	}
+	return result, err
 }
 
 func (r *register) parseParams(fnType reflect.Type) ([]reflect.Value, error) {
