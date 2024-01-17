@@ -22,6 +22,10 @@ func (q *quickStartTest) Get() ([]string, error) {
 	return []string{"Hello"}, fmt.Errorf("ok")
 }
 
+func (q *quickStartTest) Get2() ([]string, error) {
+	return []string{"Hello"}, nil
+}
+
 func Test_checkRepeated(t *testing.T) {
 	r = &register{
 		gCtx:    &gin.Context{},
@@ -33,7 +37,7 @@ func Test_checkRepeated(t *testing.T) {
 }
 
 func Test_getCallResponse(t *testing.T) {
-	fn := reflect.ValueOf(&quickStartTest{}).MethodByName("Get")
+	fn := reflect.ValueOf(&quickStartTest{}).MethodByName("Get2")
 	data, err := getCallResponse(fn.Call([]reflect.Value{}))
 	t.Log(data, err)
 }

@@ -16,12 +16,12 @@ type register struct {
 
 var r *register
 
-func RegisterHandler(e *gin.Engine, serviceName string, service interface{}) {
+func RegisterHandler(e *gin.Engine, uri string, service interface{}) {
 	r = &register{
 		g:       e,
 		service: service,
 	}
-	r.g.POST(fmt.Sprintf("/%s/quick-start/do", serviceName), r.handler)
+	r.g.POST(uri, r.handler)
 }
 
 func (r *register) handler(c *gin.Context) {
@@ -65,6 +65,9 @@ func getCallResponse(list []reflect.Value) (interface{}, error) {
 		if v, ok := item.Interface().(error); ok {
 			err = v
 		} else {
+			if item.Type().String() == "error" {
+				continue
+			}
 			result = append(result, item.Interface())
 		}
 	}
@@ -95,9 +98,9 @@ func (r *register) parseParams(fnType reflect.Type) ([]reflect.Value, error) {
 }
 
 type responseModel struct {
-	Code int
-	Data interface{}
-	Msg  string
+	Code int         `json:"code"`
+	Msg  string      `json:"msg"`
+	Data interface{} `json:"data"`
 }
 
 func response(data interface{}, err error) {
