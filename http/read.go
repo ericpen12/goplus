@@ -3,11 +3,13 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 )
 
 type Parser interface {
 	Obj() any
+	ErrMsg() string
 }
 
 type Result interface {
@@ -22,24 +24,33 @@ func Read(body io.Reader, format any) (Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	newBuffer, err := getBuffer(buf, format)
+	if err != nil {
+		return nil, err
+	}
 	return &result{
 		originBuf: buf,
-		buf:       getBuffer(buf, format),
+		buf:       newBuffer,
 	}, nil
 }
 
-func getBuffer(r *bytes.Buffer, format any) *bytes.Buffer {
+func getBuffer(r *bytes.Buffer, format any) (*bytes.Buffer, error) {
 	if format == nil {
-		return r
+		return r, nil
 	}
 	_ = json.Unmarshal(r.Bytes(), format)
-	var b []byte
-	if p, ok := format.(Parser); ok {
-		b, _ = json.Marshal(p.Obj())
-	} else {
-		b, _ = json.Marshal(format)
+	p, ok := format.(Parser)
+	if !ok {
+		b, _ := json.Marshal(format)
+		return bytes.NewBuffer(b), nil
 	}
-	return bytes.NewBuffer(b)
+
+	if p.ErrMsg() != "" {
+		return nil, fmt.Errorf(p.ErrMsg())
+	}
+
+	b, _ := json.Marshal(p.Obj())
+	return bytes.NewBuffer(b), nil
 }
 
 type result struct {
