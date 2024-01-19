@@ -38,19 +38,22 @@ func getBuffer(r *bytes.Buffer, format any) (*bytes.Buffer, error) {
 	if format == nil {
 		return r, nil
 	}
-	_ = json.Unmarshal(r.Bytes(), format)
+	err := json.Unmarshal(r.Bytes(), format)
+	if err != nil {
+		return nil, err
+	}
 	p, ok := format.(Parser)
 	if !ok {
-		b, _ := json.Marshal(format)
-		return bytes.NewBuffer(b), nil
+		b, err := json.Marshal(format)
+		return bytes.NewBuffer(b), err
 	}
 
 	if p.ErrMsg() != "" {
 		return nil, fmt.Errorf(p.ErrMsg())
 	}
 
-	b, _ := json.Marshal(p.Obj())
-	return bytes.NewBuffer(b), nil
+	b, err := json.Marshal(p.Obj())
+	return bytes.NewBuffer(b), err
 }
 
 type result struct {
