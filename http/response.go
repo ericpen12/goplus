@@ -12,13 +12,13 @@ type Parser interface {
 	ErrMsg() string
 }
 
-type Result interface {
+type EasyResponse interface {
 	Buffer() *bytes.Buffer
 	Bind(data interface{}) error
-	UnescapeString() Result
+	UnescapeString() EasyResponse
 }
 
-func Read(body io.Reader, format any) (Result, error) {
+func Read(body io.Reader, format any) (EasyResponse, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	_, err := buf.ReadFrom(body)
 	if err != nil {
@@ -72,7 +72,7 @@ func (r *result) Bind(data interface{}) error {
 	return json.Unmarshal(r.buf.Bytes(), data)
 }
 
-func (r *result) UnescapeString() Result {
+func (r *result) UnescapeString() EasyResponse {
 	m := make(map[string]interface{})
 	_ = json.Unmarshal([]byte(UnescapeString(r.buf.Bytes())), &m)
 	b, _ := json.Marshal(m)
